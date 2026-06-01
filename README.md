@@ -1,86 +1,76 @@
 # srvcs-vectoradd
 
-Concern: **vectors: component-wise addition**
+## Name
 
-Adds two equal-length vectors component by component. This service is an
-*orchestrator*: it owns the control flow but delegates every scalar addition to
-its primitive dependency.
+| Field | Value |
+| --- | --- |
+| Service | `srvcs-vectoradd` |
+| Slug | `vectoradd` |
+| Repository | `srvcs/vectoradd` |
+| Package | `srvcs-vectoradd` |
+| Kind | `orchestrator` |
 
-- Depends on: `srvcs-floatadd`
+## Function
 
-## Algorithm
+vectors: component-wise addition
 
-Given the request `{"a": [number, ...], "b": [number, ...]}` where `a` and `b`
-have equal length, for each index `i`:
+## Dependencies
 
-```
-result[i] = floatadd({"a": a[i], "b": b[i]}).result
-```
-
-The `result` is the list of those component sums (a JSON array of `f64`).
-
-```
-vectoradd([1, 2], [3, 4]) = [4.0, 6.0]
-```
-
-Vectors are read as JSON arrays; each element is passed straight into the
-dependency request body. This service does **not** call `srvcs-isnumber`
-directly — element-level validation propagates from `srvcs-floatadd` (its
-`422`s are forwarded verbatim). The one validation this service owns is the
-equal-length requirement: a length mismatch is rejected with `422`.
+| Dependency | Repository |
+| --- | --- |
+| `srvcs-floatadd` | [srvcs/floatadd](https://github.com/srvcs/floatadd) |
 
 ## API
 
-### `GET /`
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/` | Service identity |
+| `POST` | `/` | Evaluate the service function |
+| `GET` | `/healthz` | Liveness probe |
+| `GET` | `/readyz` | Readiness probe |
+| `GET` | `/metrics` | Prometheus metrics |
+| `GET` | `/openapi.json` | OpenAPI document |
 
-Service identity.
+## Inputs
 
-```json
-{
-  "service": "srvcs-vectoradd",
-  "concern": "vectors: component-wise addition",
-  "depends_on": ["srvcs-floatadd"]
-}
-```
+| Name | Type | Required |
+| --- | --- | --- |
+| `a` | `json[]` | yes |
+| `b` | `json[]` | yes |
 
-### `POST /`
+## Outputs
 
-Request:
-
-```json
-{ "a": [1, 2], "b": [3, 4] }
-```
-
-Response `200`:
-
-```json
-{ "a": [1, 2], "b": [3, 4], "result": [4.0, 6.0] }
-```
-
-Statuses:
-
-- `200` — the component-wise sum.
-- `422` — the vectors differ in length, or `srvcs-floatadd` rejected a
-  component (forwarded).
-- `500` — `srvcs-floatadd` returned a `200` without a usable numeric `result`.
-- `503` — `srvcs-floatadd` is unreachable; this service reports itself degraded.
+| Name | Type |
+| --- | --- |
+| `a` | `json[]` |
+| `b` | `json[]` |
+| `result` | `number[]` |
 
 ## Configuration
 
-| Variable             | Default                 | Description                   |
-| -------------------- | ----------------------- | ----------------------------- |
-| `SRVCS_BIND_ADDR`    | `0.0.0.0:8080`          | Listen address.               |
-| `SRVCS_FLOATADD_URL` | `http://127.0.0.1:8090` | Base URL of `srvcs-floatadd`. |
-| `RUST_LOG`           | `info,tower_http=info`  | Log filter.                   |
-| `SRVCS_ENV`          | `development`           | Environment label.            |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SRVCS_BIND_ADDR` | `0.0.0.0:8080` | Bind address |
+| `SRVCS_ENV` | `development` | Environment label for logs |
+| `RUST_LOG` | `info,tower_http=info` | Tracing filter |
+| `SRVCS_FLOATADD_URL` | `http://127.0.0.1:8090` | Base URL for srvcs-floatadd |
 
-## Local checks
+## Error Behavior
+
+- `422` means the request could not be evaluated for the documented input shape.
+- `503` means a required dependency was unavailable or returned an unexpected response.
+- Dependency validation errors are forwarded when this service delegates validation.
+
+## Local Checks
 
 ```sh
-nix flake check -L
-nix develop -c sh -euc 'cargo fmt --check; cargo clippy --all-targets -- -D warnings; cargo test'
-nix build .#default -L
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
 ```
 
-See [`srvcs/platform`](https://github.com/srvcs/platform) for the shared service
-standard and CI workflow.
+See the [srvcs service standard](https://github.com/srvcs/platform/blob/main/STANDARD.md) for the full operational contract.
+
+## Metadata
+
+Machine-readable service metadata lives in `srvcs.yaml`. Keep it aligned with this README when the service contract changes.
